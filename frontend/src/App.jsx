@@ -1,44 +1,72 @@
 
+import { useEffect, useState } from "react";
 import Navbar from "./component/navbar.jsx";
 import "./App.css";
 
-const skills = [
-  "HTML",
-  "CSS",
-  "JavaScript",
-  "React",
-  "Node.js",
-  "Git & GitHub",
-];
-
-const projects = [
-  {
-    number: "01",
-    title: "Luxury Jewelry Store",
-    category: "E-commerce Website",
-    description:
-      "A modern online store concept for showcasing luxury jewelry and helping customers explore products.",
-    technologies: ["React", "CSS", "JavaScript"],
-  },
-  {
-    number: "02",
-    title: "Inventory Management",
-    category: "Management System",
-    description:
-      "A system concept for tracking products, monitoring stock levels, and organizing inventory information.",
-    technologies: ["React", "Node.js", "Database"],
-  },
-  {
-    number: "03",
-    title: "Lucy Hotel Website",
-    category: "Hotel Website",
-    description:
-      "A responsive hotel website concept featuring room information, hotel services, and contact details.",
-    technologies: ["React", "CSS", "JavaScript"],
-  },
-];
-
 function App() {
+  const [skills, setSkills] = useState([]);
+  const [projects, setProjects] = useState([]);
+  const [dataError, setDataError] = useState("");
+  const [contact, setContact] = useState({ name: "", email: "", message: "" });
+  const [submission, setSubmission] = useState({ state: "idle", message: "" });
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    async function loadPortfolioData() {
+      try {
+        const [skillsResponse, projectsResponse] = await Promise.all([
+          fetch("/api/skills", { signal: controller.signal }),
+          fetch("/api/projects", { signal: controller.signal }),
+        ]);
+
+        if (!skillsResponse.ok || !projectsResponse.ok) {
+          throw new Error("Portfolio information is temporarily unavailable.");
+        }
+
+        const [skillsData, projectsData] = await Promise.all([
+          skillsResponse.json(),
+          projectsResponse.json(),
+        ]);
+        setSkills(skillsData.skills);
+        setProjects(projectsData.projects);
+      } catch (error) {
+        if (error.name !== "AbortError") {
+          setDataError(error.message);
+        }
+      }
+    }
+
+    loadPortfolioData();
+    return () => controller.abort();
+  }, []);
+
+  async function handleContactSubmit(event) {
+    event.preventDefault();
+    setSubmission({ state: "sending", message: "" });
+
+    try {
+      const response = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(contact),
+      });
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || "Your message could not be sent.");
+      }
+
+      setSubmission({ state: "success", message: result.message });
+      setContact({ name: "", email: "", message: "" });
+    } catch (error) {
+      setSubmission({
+        state: "error",
+        message: error.message || "Unable to connect. Please try again later.",
+      });
+    }
+  }
+
   return (
     <>
       <a className="skip-link" href="#main-content">
@@ -151,6 +179,7 @@ function App() {
             ))}
           </div>
 
+          {dataError && <p className="api-error" role="alert">{dataError}</p>}
           <p className="skills-note">A growing toolkit, shaped by continuous learning and hands-on projects.</p>
         </section>
 
@@ -214,6 +243,7 @@ function App() {
             ))}
           </div>
 
+          {dataError && <p className="api-error" role="alert">{dataError}</p>}
           <p className="portfolio-disclaimer">
             These are project concepts. More detailed case studies and live
             demos will be added as the work is ready to share.
@@ -233,6 +263,64 @@ function App() {
             I'm always glad to meet fellow developers, explore opportunities,
             and hear about thoughtful ideas.
           </p>
+          <form className="contact-form" onSubmit={handleContactSubmit}>
+            <label>
+              Name
+              <input
+                autoComplete="name"
+                maxLength={100}
+                name="name"
+                onChange={(event) =>
+                  setContact({ ...contact, name: event.target.value })
+                }
+                required
+                value={contact.name}
+              />
+            </label>
+            <label>
+              Email
+              <input
+                autoComplete="email"
+                maxLength={254}
+                name="email"
+                onChange={(event) =>
+                  setContact({ ...contact, email: event.target.value })
+                }
+                required
+                type="email"
+                value={contact.email}
+              />
+            </label>
+            <label>
+              Message
+              <textarea
+                maxLength={5000}
+                minLength={10}
+                name="message"
+                onChange={(event) =>
+                  setContact({ ...contact, message: event.target.value })
+                }
+                required
+                rows={6}
+                value={contact.message}
+              />
+            </label>
+            <button
+              className="button button-primary contact-submit"
+              disabled={submission.state === "sending"}
+              type="submit"
+            >
+              {submission.state === "sending" ? "Sending..." : "Send message"}
+            </button>
+            {submission.message && (
+              <p
+                className={`form-feedback form-feedback-${submission.state}`}
+                role={submission.state === "error" ? "alert" : "status"}
+              >
+                {submission.message}
+              </p>
+            )}
+          </form>
           <div className="contact-methods" aria-label="Contact options">
             <a className="contact-method" href="mailto:abrhammesfn1@gmail.com">
               <span className="contact-method-label">Email</span>
